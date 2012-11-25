@@ -1,6 +1,11 @@
 from setuptools import setup
 
 entry_points = """
+[console_scripts]
+cass-check = cass_check.scripts:cass_check_main
+
+[cass_check.commands]
+noop=cass_check.commands:NoopCommand
 """
 
 setup(
@@ -9,6 +14,5 @@ setup(
     author='Aaron Morton',
     author_email='aaron@thelastpickle.com',
     packages = [],
-    install_requires=install_requires,
     entry_points=entry_points
 )
