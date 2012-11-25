@@ -140,7 +140,7 @@ def cass_check_main():
         rv = 0
         for cmd in commands:
             log.debug("Starting command {c.name}".format(c=cmd))
-            rv, cmd_out = sub_command()
+            rv, cmd_out = cmd()
             
             out.append(cmd_out)
             if rv !=0:
