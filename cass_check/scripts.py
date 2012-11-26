@@ -71,12 +71,16 @@ def arg_parser():
         default="/tmp/cass-check",
         help="Base output directory.")
     main_parser.add_argument("--check-name", dest="check_name", 
-        default=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M"),
+        default=datetime.datetime.now().strftime("%Y-%m-%dT%H-%M"),
         help="Name for this checkup report.")
     main_parser.add_argument("--check-dir", dest="check_dir",
         help="Full path to output to, if specified output-base and "\
             "check-name are ignored.")
-        
+
+    main_parser.add_argument("--fail-fast", dest="fail_fast", default=False,
+        action="store_true",
+        help="Fail processing at the first error. Otherwise issue a warning.")
+            
     main_parser.add_argument("--log-level", default="DEBUG", 
         dest="log_level", 
         choices=["FATAL", "CRITICAL", "ERROR", "WARN", "INFO", "DEBUG"],
@@ -88,13 +92,17 @@ def arg_parser():
     return main_parser
 
 def validate_global_args(args):
-    
+
+    log = logging.getLogger(__name__)
+        
     file_util.ensure_dir(args.output_base)
     
     if not args.check_dir:
         args.check_dir = os.path.join(args.output_base, args.check_name)
+    args.check_dir = os.path.abspath(args.check_dir)
+    log.info("Output directory is {args.check_dir}".format(args=args))
     file_util.ensure_dir(args.check_dir)
-    
+
     return
     
 def cass_check_main():
@@ -110,8 +118,7 @@ def cass_check_main():
     log.debug("Got command args %(args)s" % vars())
     
     validate_global_args(args)
-    log.info("Output directory is {check_dir}".format(
-        check_dir=args.check_dir))
+
     
     # commands set their ctor as a default argument. 
     # if no commands are specified we run all commands

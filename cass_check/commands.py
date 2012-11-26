@@ -1,7 +1,13 @@
 """Base for commands"""
 
 import argparse
+import copy
 import logging
+import os.path
+
+import pkg_resources
+
+import file_util, resources
 
 # ============================================================================
 # 
@@ -57,7 +63,7 @@ class SubCommand(object):
         Must be implemented by sub classes.
         """
         raise NotImplementedError()
-        
+
 # ============================================================================
 # 
 
@@ -83,3 +89,160 @@ class NoopCommand(SubCommand):
     def __call__(self):
         """Just return a no op message."""
         return (0, "no op")
+
+# ============================================================================
+# 
+
+class CheckCommand(SubCommand):
+    """Command that runs all the parts of the checkup."""
+
+    name = "check"
+    """Command line name for the Sub Command.
+
+    Must be specified by sub classes.
+    """
+
+    help = "Runs a full checkup."
+    """Command line help for the Sub Command."""
+
+    description = "Runs a full checkup."
+    """Command line description for the Sub Command."""
+
+
+    def __init__(self, args):
+        self.log = logging.getLogger("%s.%s" % (__name__, "CheckCommand"))
+        self.args = args
+        
+    def __call__(self):
+        """Runs the command."""
+        
+        # commands to run and the order to run them in. 
+        ep_names = ["collect"]
+        cmds = []
+        for ep_name in ep_names:
+            eps = pkg_resources.iter_entry_points(resources.COMMAND_EP_GROUP,
+                name=name)
+            if not eps or len(eps) > 1:
+                return RuntimeError("Found {len} end points for group "\
+                    "{group} and name {name}".format(len=len(ep), 
+                    group=resources.COMMAND_EP_GROUP, name=ep_name))
+            cmds.append(eps[0].load(copy.copy(args)))
+        self.log.info("Running commands {cmds}".format(cmds=cmds))
+        
+        out = []
+        for cmd in cmds:
+            self.log.debug("Starting command {cmd}".format(cmd=cmd))
+            out.append(cmd())
+        
+        return (0, "\n".join(out))
+
+# ============================================================================
+# 
+
+class TaskRunningCommand(SubCommand):
+    """A base for commands that run tasks, like collection."""
+
+    name = ""
+    """Command line name for the Sub Command.
+
+    Must be specified by sub classes.
+    """
+
+    help = ""
+    """Command line help for the Sub Command."""
+
+    description = ""
+    """Command line description for the Sub Command."""
+    
+    entry_point_group = ""
+    """Advertised entry point group to get tasks from for this command."""
+
+    def __init__(self, args):
+        self.args = args
+        
+    def __call__(self):
+        """"""
+        
+        # Update things before creating all the tasks
+        self._on_before_tasks()
+        
+        # create all the tasks
+        tasks = []
+        self.log.debug("Loading entry points from group {group}".format(
+            group=self.entry_point_group))
+        for ep in pkg_resources.iter_entry_points(self.entry_point_group):
+            # Tasks share the same args instance the command has.
+            tasks.append(ep.load()(self.args))
+        self.log.info("Running tasks {tasks}".format(tasks=tasks))
+        
+        # Run each task
+        for task in tasks:
+            self.log.debug("Running task {task.name}".format(task=task))
+            task_dir = None
+            try:
+                task_dir = task()
+            except (Exception) as e:
+                if self.args.fail_fast:
+                    raise
+                self.log.warn("Error from task {task.name}".format(task=task),
+                    exc_info=True)
+                task.receipt.error = e
+            
+            task.receipt.write()
+            self.log.info("Task {task.name} generated output in "\
+                "{task_dir}".format(task=task, task_dir=task_dir))
+        
+        return (0, self._describe_receipts(tasks))
+        
+    def _on_before_tasks(self):
+        """Called before the tasks are created for the command. 
+        
+        Changes to the args should be made here. For example setting the 
+        output dir for this command.
+        """
+        
+        # update the output dir 
+        orig_check_dir = self.args.check_dir
+        self.args.check_dir = os.path.abspath(os.path.join(
+            self.args.check_dir, self.name))
+        file_util.ensure_dir(self.args.check_dir)
+        
+        self.log.debug("For command {command.name} set check_dir to "\
+            "{command.args.check_dir}".format(command=self))
+        return
+    
+    def _describe_receipts(self, tasks):
+        """Build a string to describe all the ``tasks`` that ran.
+        
+        Uses the task receipt.
+        """
+        
+        builder = []
+        append = builder.append
+        
+        append("Tasks run by command {s.name}:".format(s=self))
+        for task in tasks:
+            result = "Error" if task.receipt.error else task.receipt.task_dir
+            append("\t{receipt.name:<30} {result}".format(receipt=task.receipt, 
+                result=result))
+        return "\n".join(builder)
+# ============================================================================
+# 
+
+class CollectCommand(TaskRunningCommand):
+    """Run tasks categorised as collect tasks."""
+    log = logging.getLogger("%s.%s" % (__name__, "CollectCommand"))
+        
+    name = "collect"
+    """Command line name for the Sub Command.
+    """
+
+    help = "Collect raw details from the node."
+    """Command line help for the Sub Command."""
+
+    description = ""
+    """Command line description for the Sub Command."""
+
+    entry_point_group = "cass_check.tasks.collection"
+
+        
