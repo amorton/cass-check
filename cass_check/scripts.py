@@ -71,7 +71,7 @@ def arg_parser():
         default="/tmp/cass-check",
         help="Base output directory.")
     main_parser.add_argument("--check-name", dest="check_name", 
-        default=datetime.datetime.now().strftime("%Y-%m-%dT%H-%M"),
+        default=datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
         help="Name for this checkup report.")
     main_parser.add_argument("--check-dir", dest="check_dir",
         help="Full path to output to, if specified output-base and "\

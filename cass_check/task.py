@@ -5,6 +5,8 @@ tasks outputs and write output files. For example collecting logs.
 """
 import logging
 import os.path
+import shlex
+import subprocess
 
 import yaml
 
@@ -22,6 +24,9 @@ class Task(object):
     description = ""
     """Description of the task."""
     
+    # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # virtual and abstract 
+    
     def __init__(self, args):
         self.args = args
         self.task_dir = os.path.abspath(os.path.join(self.args.check_dir, 
@@ -38,7 +43,40 @@ class Task(object):
 
     def _do_task(self):
         raise NotImplementedError()
-    
+
+    # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Utilities. 
+
+    def _exec_cmd(self, cmd_line):
+        """Executes the ``cmd_line``. 
+        
+        """
+
+        split_line = shlex.split(str(cmd_line))
+        self.log.debug("Executing command {split_line}".format(
+            split_line=split_line))
+        
+        process = subprocess.Popen(split_line, 
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        std_out, std_err = process.communicate()
+        if std_err:
+            raise RuntimeError("Error running command {cmd_line}: "\
+                "{error}".format(cmd_line=cmd_line, error=error))
+                
+        return std_out
+
+    def _write_output(self, content):
+        """Write the output for the task. 
+        """
+        
+        path = os.path.join(self.task_dir, self.name)
+        self.log.debug("Writing output from task {self.name} to "\
+            "{path}".format(self=self, path=path))
+        
+        with open(path, "w") as f:
+            f.write(content)
+        return path
+        
 # ============================================================================
 # 
 
@@ -60,5 +98,5 @@ class TaskReceipt(object):
             "{out_file}".format(self=self, out_file=out_file))
 
         with open(out_file, "w") as f:
-            yaml.dump(vars(self), stream=f)
+            yaml.dump(vars(self), stream=f, default_flow_style=False)
         return out_file

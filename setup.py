@@ -11,7 +11,7 @@ collect=cass_check.commands:CollectCommand
 
 [cass_check.tasks.collection]
 logs=cass_check.collection_tasks:LogCollectionTask
-
+proxy_histograms=cass_check.collection_tasks:ProxyHistogramsCollectionTask
 """
 
 setup(
