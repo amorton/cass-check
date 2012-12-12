@@ -7,7 +7,9 @@ import os.path
 
 import pkg_resources
 
-import file_util, resources
+from mako.template import Template
+
+import file_util, resources, task
 
 # ============================================================================
 # 
@@ -135,6 +137,93 @@ class CheckCommand(SubCommand):
             out.append(cmd())
         
         return (0, "\n".join(out))
+
+# ============================================================================
+# 
+
+class ReportCommand(SubCommand):
+    """Build a report on the output from tasks."""
+
+    name = "report"
+    """Command line name for the Sub Command.
+
+    Must be specified by sub classes.
+    """
+
+    help = "Reports on the task output."
+    """Command line help for the Sub Command."""
+
+    description = "Reports on the task output."
+    """Command line description for the Sub Command."""
+
+
+    def __init__(self, args):
+        self.log = logging.getLogger("%s.%s" % (__name__, "ReportCommand"))
+        self.args = args
+
+        self.report_dir = os.path.join(self.args.check_dir, self.name)
+        file_util.ensure_dir(self.report_dir)
+
+    def __call__(self):
+        """Runs the command."""
+        
+        # Collect all of the task receipts that need to be reported on.
+        # args.check_dir will be the top level dir 
+        receipts = []
+        for root, dirs, files in os.walk(self.args.check_dir):
+            paths = (
+                os.path.join(root, f)
+                for f in files
+            )
+            for path in paths:
+                receipt = task.TaskReceipt.maybe_load(path)
+                if receipt and receipt.report_on:
+                    receipts.append(receipt)
+        self.log.debug("Reporting on receipts {receipts}".format(
+            receipts=receipts))
+        
+        # Build a list of all the files we want to copy and associate 
+        # this with the receipt. 
+        receipt_files = {}
+        for receipt in receipts:            
+            root, _, files in os.walk(receipt.task_dir).next()
+            paths = (
+                os.path.join(root, f)
+                for f in files
+            )
+            copy_files = [
+                path
+                for path in paths
+                if not task.TaskReceipt.is_receipt_file(path)
+            ]
+            self.log.debug("For task {receipt.task_name} has files "\
+                "{files}".format(receipt=receipt, files=files))
+            receipt_files[receipt] = files
+        
+        self.log.info("Building report in {self.report_dir}".format(
+            self=self))
+        report_file = self._write_report(receipt_files)
+        
+        out = [
+            "Wrote report to {report_file}".format(report_file=report_file)
+        ]
+        return (0, "\n".join(out))
+    
+    def _write_report(self, receipt_files):
+        """Writes the report to disk for the ``receipt_files`` map of 
+        :class:`task.TastReceipt` to list of file paths. 
+        """
+        
+        template = Template(text=pkg_resources.resource_string(
+            "cass_check", "templates/report.mako"))
+        
+        path = os.path.join(self.report_dir, "index.html")
+        self.log.info("Writing report index to {path}".format(
+            path=path))
+        with open(path, "w") as f:
+            f.write(template.render(receipt_files=receipt_files))
+        return path
+        
 
 # ============================================================================
 # 

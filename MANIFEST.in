@@ -1,0 +1,8 @@
+recursive-include cass_check *.py
+recursive-include cass_check/resources *
+recursive-include cass_check/templates *
+include *.py
+include *.txt
+include *.md
+include *.cfg
+include MANIFEST.in

@@ -88,6 +88,35 @@ class TaskReceipt(object):
         self.name = name 
         self.error = error
         self.task_dir = task_dir
+        self.report_on = False
+    
+    @classmethod
+    def is_receipt_file(cls, path):
+        _, file_name = os.path.split(path)
+        return file_name == "receipt.yaml"
+
+    @classmethod
+    def maybe_load(cls, path):
+        """Loads the receipt at ``path`` if it is a recipt file.
+        
+        Returns None or the :class:`TaskReceipt`.
+        """
+        
+        if not cls.is_receipt_file(path):
+            return None
+            
+        cls.log.debug("Reading TaskReceipt {path}".format(path=path))
+        with open(path, "r") as f:
+            data = yaml.load(f)
+        
+        receipt = TaskReceipt(data["name"], data["task_dir"])
+        for k, v in data.iteritems():
+            if hasattr(receipt, k):
+                setattr(receipt, k, v)
+            else:
+                cls.log.debug("Unkown property {k} in receipt file "\
+                    "{path}".format(k=k, path=path))
+        return receipt
         
     def write(self):
         """Writes the task receipt to the current task_dir."""
