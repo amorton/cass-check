@@ -12,7 +12,7 @@
     <![endif]-->
 
     <!-- Le styles -->
-    <link href="bootstrap.css" rel="stylesheet">
+    <link href="assets/bootstrap.min.css" rel="stylesheet">
 
     <!-- Le fav and touch icons -->
     <!-- 
@@ -25,7 +25,7 @@
 
   <body >
 
-    <div class="navbar navbar-fixed-top" data-dropdown="dropdown">
+    <div class="navbar" data-dropdown="dropdown">
       <div class="navbar-inner">
         <div class="container">
           <a class="brand" href="/">Cassandra Checkup</a>
@@ -62,7 +62,8 @@
       </table>
 
     </div>
-
-    <script src="/static/javascript/bootstrap.js"></script>
+    
+    <script src="assets/jquery-1.8.3.min.js"></script>
+    <script src="assets/bootstrap.min.js"></script>
   </body>
 </html>

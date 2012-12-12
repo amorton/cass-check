@@ -191,6 +191,8 @@ class ReportCommand(SubCommand):
                 os.path.join(root, f)
                 for f in files
             )
+            
+            # Exclude the receipt files. 
             copy_files = [
                 path
                 for path in paths
@@ -214,15 +216,31 @@ class ReportCommand(SubCommand):
         :class:`task.TastReceipt` to list of file paths. 
         """
         
+        # Render the report
+        
         template = Template(text=pkg_resources.resource_string(
             "cass_check", "templates/report.mako"))
-        
-        path = os.path.join(self.report_dir, "index.html")
-        self.log.info("Writing report index to {path}".format(
-            path=path))
-        with open(path, "w") as f:
+        index_path = os.path.join(self.report_dir, "index.html")
+        self.log.info("Writing report index to {index_path}".format(
+            index_path=index_path))
+        with open(index_path, "w") as f:
             f.write(template.render(receipt_files=receipt_files))
-        return path
+            
+        # copy assets
+        for asset_name in pkg_resources.resource_listdir("cass_check", 
+            "assets/"):
+            
+            res_name = "assets/{asset_name}".format(asset_name=asset_name)
+            dest = os.path.join(self.report_dir, res_name)
+            self.log.info("Copying report asset {asset_name} to "\
+                "{dest}".format(asset_name=asset_name, dest=dest))
+                
+            with pkg_resources.resource_stream("cass_check", res_name) as src:
+                file_util.ensure_dir(os.path.dirname(dest))
+                with open(dest, "w") as f:
+                    f.write(src.read())
+        
+        return index_path
         
 
 # ============================================================================
