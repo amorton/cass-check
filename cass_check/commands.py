@@ -4,6 +4,7 @@ import argparse
 import copy
 import logging
 import os.path
+import shutil
 
 import pkg_resources
 
@@ -119,22 +120,35 @@ class CheckCommand(SubCommand):
         """Runs the command."""
         
         # commands to run and the order to run them in. 
-        ep_names = ["collect"]
+        ep_names = ["collect", "report"]
         cmds = []
         for ep_name in ep_names:
-            eps = pkg_resources.iter_entry_points(resources.COMMAND_EP_GROUP,
-                name=name)
+            eps = list(pkg_resources.iter_entry_points(
+                resources.COMMAND_EP_GROUP, name=ep_name))
+
             if not eps or len(eps) > 1:
                 return RuntimeError("Found {len} end points for group "\
                     "{group} and name {name}".format(len=len(ep), 
                     group=resources.COMMAND_EP_GROUP, name=ep_name))
-            cmds.append(eps[0].load(copy.copy(args)))
+            # Load returns the cls, we want to create an instance
+            cmds.append(eps[0].load()(copy.copy(self.args)))
         self.log.info("Running commands {cmds}".format(cmds=cmds))
-        
+
         out = []
         for cmd in cmds:
             self.log.debug("Starting command {cmd}".format(cmd=cmd))
-            out.append(cmd())
+            cmd_ret, cmd_out = cmd()
+            
+            if cmd_ret != 0 and self.args.fail_fast:
+                import pdb
+                pdb.set_trace()
+                self.log.error("Error {cmd_ret} running command {cmd.name}. "\
+                    "Stopping as fail-fast was specified.".format(
+                    cmd_ret=cmd_ret, cmd=cmd))
+            
+            out.append("")
+            out.append("Output from command: {cmd.name}".format(cmd=cmd))
+            out.append(cmd_out)
         
         return (0, "\n".join(out))
 
@@ -186,7 +200,7 @@ class ReportCommand(SubCommand):
         # this with the receipt. 
         receipt_files = {}
         for receipt in receipts:            
-            root, _, files in os.walk(receipt.task_dir).next()
+            root, _, files = os.walk(receipt.task_dir).next()
             paths = (
                 os.path.join(root, f)
                 for f in files
@@ -198,19 +212,43 @@ class ReportCommand(SubCommand):
                 for path in paths
                 if not task.TaskReceipt.is_receipt_file(path)
             ]
-            self.log.debug("For task {receipt.task_name} has files "\
-                "{files}".format(receipt=receipt, files=files))
-            receipt_files[receipt] = files
+            self.log.debug("For task {receipt.name} has files "\
+                "{files}".format(receipt=receipt, files=copy_files))
+            receipt_files[receipt] = copy_files
+        
+        
+        relative_files = self._copy_receipt_files(receipt_files)
         
         self.log.info("Building report in {self.report_dir}".format(
             self=self))
-        report_file = self._write_report(receipt_files)
+        report_file = self._write_report(relative_files)
         
         out = [
             "Wrote report to {report_file}".format(report_file=report_file)
         ]
         return (0, "\n".join(out))
     
+    def _copy_receipt_files(self, receipt_files):
+        """Copy the files for each receipt in ``receipt_files`` to the 
+        tasks/ dir in the report. 
+        
+        Returns a dict of {receipt : [report_file]} where report_file is 
+        a relative path under the report."""
+        
+        report_files = {}
+        for receipt, paths in receipt_files.iteritems():
+            report_files[receipt] = []
+            
+            for src_path in paths:
+                _, src_name = os.path.split(src_path)
+                rel_path = os.path.join("tasks", src_name)
+                dest_path = os.path.join(self.report_dir, rel_path)
+                
+                file_util.ensure_dir(os.path.dirname(dest_path))
+                shutil.copy2(src_path, dest_path)
+                report_files[receipt].append(rel_path)
+        return report_files
+        
     def _write_report(self, receipt_files):
         """Writes the report to disk for the ``receipt_files`` map of 
         :class:`task.TastReceipt` to list of file paths. 

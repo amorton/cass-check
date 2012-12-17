@@ -61,7 +61,7 @@ class Task(object):
         std_out, std_err = process.communicate()
         if std_err:
             raise RuntimeError("Error running command {cmd_line}: "\
-                "{error}".format(cmd_line=cmd_line, error=error))
+                "{error}".format(cmd_line=cmd_line, error=std_out or std_err))
                 
         return std_out
 
@@ -88,7 +88,7 @@ class TaskReceipt(object):
         self.name = name 
         self.error = error
         self.task_dir = task_dir
-        self.report_on = False
+        self.report_on = True
     
     @classmethod
     def is_receipt_file(cls, path):

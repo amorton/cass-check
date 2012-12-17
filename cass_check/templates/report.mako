@@ -43,21 +43,27 @@
           </tr>
         </thead>
         <tbody>
-          <tr>
-            % for receipt, files in receipt_files.iteritems():
+          % for receipt, files in receipt_files.iteritems():
+            <tr>
               <td>
                   ${receipt.name}
               </td>
               <td>
-                <ul>
-                  % for file_name in files:
-                    <li>
-                      <a href="${file_name}">${file_name}</a>
-                    </li>
-                  %endfor
-                </ul> 
-            % endfor
-          </tr>
+                % if receipt.error:
+                  <span class="label label-important">Error</span>
+                  ${receipt.error}
+                % else:
+                  <ul>
+                    % for file_name in files:
+                      <li>
+                        <a href="${file_name}">${file_name}</a>
+                      </li>
+                    %endfor
+                  </ul>
+                %endif
+              </td>
+            </tr>
+          % endfor
         </tbody>
       </table>
 
